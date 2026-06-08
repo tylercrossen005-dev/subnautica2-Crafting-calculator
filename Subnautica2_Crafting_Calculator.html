@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subnautica 2 — Crafting Calculator</title>
+<style>
+  :root {
+    --bg: #07111f;
+    --panel: #0d1f33;
+    --card: #122840;
+    --border: #1e4060;
+    --accent: #00c8e0;
+    --accent2: #0090a8;
+    --text: #c8e8f0;
+    --muted: #5a8099;
+    --raw: #88bbcc;
+    --crafted: #60d0b0;
+    --qty: #ffc060;
+    --minus: #e05050;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+
+  header {
+    background: linear-gradient(135deg, #061828 0%, #0a2540 100%);
+    border-bottom: 2px solid var(--accent2);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { font-size: 1.25rem; color: var(--accent); letter-spacing: 1px; font-weight: 600; }
+  header p { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+  .toggle-wrap { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
+  .toggle { position: relative; width: 40px; height: 20px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; inset: 0; background: var(--border); border-radius: 20px; cursor: pointer; transition: .2s; }
+  .slider:before { content: ''; position: absolute; height: 14px; width: 14px; left: 3px; bottom: 3px; background: var(--muted); border-radius: 50%; transition: .2s; }
+  input:checked + .slider { background: var(--accent2); }
+  input:checked + .slider:before { transform: translateX(20px); background: var(--accent); }
+
+  /* ── DESKTOP LAYOUT ── */
+  .main { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 62px); }
+  .tab-bar { display: none; }
+
+  /* LEFT PANEL */
+  .left { width: 380px; min-width: 320px; display: flex; flex-direction: column; border-right: 2px solid var(--border); background: var(--panel); }
+  .search-wrap { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .search-wrap input {
+    width: 100%; padding: 7px 12px; border-radius: 6px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text); font-size: 0.82rem; outline: none;
+  }
+  .search-wrap input:focus { border-color: var(--accent2); }
+  .search-wrap input::placeholder { color: var(--muted); }
+  .clear-btn {
+    margin-top: 6px; width: 100%; padding: 5px; border-radius: 5px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-size: 0.75rem; cursor: pointer; transition: .15s;
+  }
+  .clear-btn:hover { border-color: var(--minus); color: var(--minus); }
+
+  .item-list { overflow-y: auto; flex: 1; padding-bottom: 12px; }
+  .category { border-bottom: 1px solid var(--border); }
+  .cat-header {
+    padding: 8px 12px; font-size: 0.73rem; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent2);
+    background: #0a1a2e; cursor: pointer; user-select: none;
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; z-index: 2;
+  }
+  .cat-header .arrow { transition: transform .2s; font-size: 0.6rem; }
+  .cat-header.collapsed .arrow { transform: rotate(-90deg); }
+  .cat-body { }
+  .cat-body.hidden { display: none; }
+
+  .item-row {
+    display: flex; align-items: center; padding: 5px 10px 5px 14px;
+    border-bottom: 1px solid #0d1f33; transition: background .1s;
+  }
+  .item-row:hover { background: #0f2035; }
+  .item-row.active { background: #0e2a3a; }
+  .item-name { flex: 1; font-size: 0.82rem; color: var(--text); padding-right: 8px; }
+  .qty-ctrl { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .qty-ctrl button {
+    width: 22px; height: 22px; border-radius: 4px; border: none;
+    font-size: 0.9rem; font-weight: bold; cursor: pointer; transition: .15s;
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+  }
+  .btn-minus { background: #1a1a2e; color: var(--minus); }
+  .btn-minus:hover { background: var(--minus); color: #fff; }
+  .btn-plus  { background: #0e2a1e; color: var(--crafted); }
+  .btn-plus:hover  { background: var(--crafted); color: #000; }
+  .qty-input {
+    width: 32px; text-align: center; background: var(--card);
+    border: 1px solid var(--border); color: var(--qty);
+    font-size: 0.82rem; font-weight: bold; border-radius: 3px;
+    padding: 1px 2px;
+  }
+  .qty-input:focus { outline: none; border-color: var(--accent2); }
+
+  /* RIGHT PANEL */
+  .right { flex: 1; display: flex; flex-direction: column; background: var(--bg); }
+  .right-header {
+    padding: 12px 20px 10px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; background: var(--panel);
+  }
+  .right-header h2 { font-size: 0.9rem; color: var(--accent); font-weight: 600; letter-spacing: 0.5px; }
+  .badge { background: var(--accent2); color: #000; font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
+  .copy-btn {
+    margin-left: auto; padding: 5px 14px; border-radius: 5px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--muted); font-size: 0.75rem; cursor: pointer; transition: .15s;
+  }
+  .copy-btn:hover { border-color: var(--accent2); color: var(--accent); }
+
+  .ingredient-list { overflow-y: auto; flex: 1; padding: 14px 20px; display: flex; flex-direction: column; gap: 6px; }
+
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: var(--muted); font-size: 0.85rem; gap: 8px;
+  }
+  .empty-state .icon { font-size: 2.5rem; opacity: .4; }
+
+  .ing-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 12px; border-radius: 6px;
+    background: var(--card); border: 1px solid var(--border);
+    transition: background .1s;
+  }
+  .ing-row:hover { background: #162f47; }
+  .ing-qty { font-size: 1rem; font-weight: 700; color: var(--qty); min-width: 36px; text-align: right; }
+  .ing-name { font-size: 0.84rem; color: var(--text); flex: 1; }
+  .ing-tag {
+    font-size: 0.66rem; padding: 1px 6px; border-radius: 8px;
+    font-weight: 600; letter-spacing: .5px;
+  }
+  .tag-raw     { background: #1a3040; color: var(--raw); border: 1px solid #1e4060; }
+  .tag-crafted { background: #0d2820; color: var(--crafted); border: 1px solid #1a5040; }
+
+  .section-label {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--muted); padding: 8px 4px 2px;
+  }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── MOBILE LAYOUT ── */
+  @media (max-width: 700px) {
+    header {
+      flex-wrap: wrap; padding: 10px 14px; gap: 8px;
+    }
+    header h1 { font-size: 1rem; }
+    header p  { font-size: 0.72rem; }
+    .header-right { margin-left: 0; width: 100%; }
+    .toggle-wrap  { font-size: 0.75rem; gap: 6px; }
+
+    /* Tab bar replaces side-by-side layout */
+    .tab-bar {
+      display: flex; background: var(--panel);
+      border-bottom: 2px solid var(--border); flex-shrink: 0;
+    }
+    .tab-btn {
+      flex: 1; padding: 11px 8px; border: none; background: transparent;
+      color: var(--muted); font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; border-bottom: 3px solid transparent;
+      transition: .15s; display: flex; align-items: center; justify-content: center; gap: 6px;
+      margin-bottom: -2px;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .main {
+      flex-direction: column; height: auto;
+      overflow: visible; flex: 1;
+    }
+    .left {
+      width: 100%; min-width: unset; border-right: none;
+      display: none; flex: 1;
+    }
+    .left.tab-active  { display: flex; }
+    .right {
+      display: none; flex: 1;
+    }
+    .right.tab-active { display: flex; }
+
+    /* Taller touch targets */
+    .qty-ctrl button  { width: 38px; height: 38px; font-size: 1.1rem; border-radius: 6px; }
+    .qty-input        { width: 40px; height: 38px; font-size: 0.9rem; }
+    .item-row         { padding: 9px 10px 9px 14px; }
+    .item-name        { font-size: 0.86rem; }
+    .clear-btn        { padding: 9px; font-size: 0.8rem; }
+    .search-wrap input { padding: 10px 12px; font-size: 0.86rem; }
+
+    .ingredient-list  { padding: 10px 12px; }
+    .ing-row          { padding: 10px 12px; }
+    .ing-qty          { font-size: 1.05rem; }
+    .ing-name         { font-size: 0.88rem; }
+    .copy-btn         { padding: 7px 14px; font-size: 0.8rem; }
+
+    /* Let item list scroll naturally on mobile */
+    .item-list        { overflow-y: auto; max-height: calc(100dvh - 180px); }
+    .ingredient-list  { min-height: calc(100dvh - 180px); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⚙ Subnautica 2 — Crafting Calculator</h1>
+    <p>Select items and quantities to see aggregated ingredient totals</p>
+  </div>
+  <div class="header-right">
+    <div class="toggle-wrap">
+      <span>Direct ingredients</span>
+      <label class="toggle">
+        <input type="checkbox" id="expandToggle" onchange="render()">
+        <span class="slider"></span>
+      </label>
+      <span>Raw materials</span>
+    </div>
+  </div>
+</header>
+
+<div class="tab-bar">
+  <button class="tab-btn active" id="tabItems" onclick="switchTab('items')">⚗ Select Items</button>
+  <button class="tab-btn" id="tabIng" onclick="switchTab('ingredients')">📋 Ingredients <span class="badge" id="ingCountTab">0</span></button>
+</div>
+
+<div class="main">
+  <div class="left tab-active">
+    <div class="search-wrap">
+      <input type="text" id="search" placeholder="Search items…" oninput="filterItems()">
+      <button class="clear-btn" onclick="clearAll()">✕ Clear all selections</button>
+    </div>
+    <div class="item-list" id="itemList"></div>
+  </div>
+  <div class="right">
+    <div class="right-header">
+      <h2>Ingredients Needed</h2>
+      <span class="badge" id="ingCount">0</span>
+      <button class="copy-btn" onclick="copyList()">Copy list</button>
+    </div>
+    <div class="ingredient-list" id="ingList">
+      <div class="empty-state">
+        <div class="icon">🔬</div>
+        <div>Select items on the left to calculate ingredients</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// RECIPE DATA
+// ─────────────────────────────────────────────
+const CATEGORIES = [
+  { name: "Equipment", items: [
+    { name: "Rebreather",                    r: {"Fiber Mesh":2,"System Chip":1} },
+    { name: "Improved Fins",                 r: {"Basic Fins":1,"Fiber Mesh":1,"Conduit Crystal":2} },
+    { name: "Basic Fins",                    r: {"Rubber":2,"Fiber":2} },
+    { name: "Standard Air Tank",             r: {"Titanium":2,"Rubber":1,"Silver":2} },
+    { name: "High Capacity Air Tank",        r: {"Standard Air Tank":1,"Plasteel Ingot":1} },
+    { name: "Ultra High Capacity Air Tank",  r: {"High Capacity Air Tank":1,"Troilite":3,"Atacamite":3} },
+  ]},
+  { name: "Tools", items: [
+    { name: "Survival Multitool",  r: {"Titanium":3} },
+    { name: "Flashlight",          r: {"Titanium":2,"Quartz":1,"Basic Battery":1} },
+    { name: "Scanner",             r: {"Titanium":2,"Quartz":2,"Basic Battery":1} },
+    { name: "Habitat Builder",     r: {"Titanium":2,"Glass":1,"Basic Battery":1,"Copper Wire":1} },
+    { name: "Repair Tool",         r: {"Titanium Ingot":1,"Wiring Kit":1,"Basic Battery":1,"Sulfur":1} },
+    { name: "Sonic Resonator",     r: {"Basic Battery":1,"Titanium Ingot":2,"Lead":2,"Wiring Kit":1} },
+    { name: "Wakemaker",           r: {"Silver":1,"Wiring Kit":1,"Grease":1,"Basic Battery":1} },
+    { name: "Air Bladder",         r: {"Titanium":2,"Rubber":1} },
+  ]},
+  { name: "Basic Materials", items: [
+    { name: "Mild Acid",         r: {"Acidic Raion Pouch":2,"Copper":1} },
+    { name: "Salvaged Titanium", r: {"Metal Salvage":1} },
+    { name: "Glass",             r: {"Quartz":2} },
+    { name: "Enameled Glass",    r: {"Titanium":2,"Glass":1,"Basic Battery":1,"Copper Wire":1} },
+    { name: "Fiber",             r: {"Fibrous Pulp":2} },
+    { name: "Fiber Mesh",        r: {"Fiber":2,"Strong Acid":1} },
+    { name: "Rubber",            r: {"Lucifer Rotsac":2} },
+    { name: "Grease",            r: {"Lucifer Rotsac":1} },
+  ]},
+  { name: "Electronics", items: [
+    { name: "Basic Battery",        r: {"Copper":2,"Acidic Raion Pouch":1} },
+    { name: "Advanced Battery",     r: {"Conduit Crystal":1,"Strong Acid":1,"Silver Ingot":1} },
+    { name: "Copper Wire",          r: {"Copper":2} },
+    { name: "Power Cell",           r: {"Basic Battery":2,"Strong Acid":1,"Salt":1} },
+    { name: "Entangled Power Cell", r: {"Conduit Crystal":1,"Strong Acid":1,"Gold Ingot":1,"Troilite":1} },
+    { name: "Wiring Kit",           r: {"Silver":1,"Copper Wire":1} },
+    { name: "Advanced Wiring Kit",  r: {"Wiring Kit":1,"Gold":1,"Sulfur":1} },
+    { name: "System Chip",          r: {"Wiring Kit":1,"Quartz":2} },
+    { name: "Dedicated Core",       r: {"Advanced Wiring Kit":1,"Quartz":2,"Strong Acid":1} },
+  ]},
+  { name: "Food & Water", items: [
+    { name: "Sugar of Saturn",        r: {"Lead":1,"Salt":1} },
+    { name: "Halfmoon Jerky",         r: {"Halfmoon":2,"Salt":1} },
+    { name: "Threemoon Temaki",       r: {"Halfmoon":1,"Harvestmoon":1,"Bluemoon":1,"Fibrous Pulp":1} },
+    { name: "Hoverthorn Souvlaki",    r: {"Hoverthorn":3,"Salt":1} },
+    { name: "Cherimoya Chutney",      r: {"Cherimoya Rotsac":2,"Sugar of Saturn":1} },
+    { name: "Pavlova",                r: {"Deepwing Egg Clump":1,"Sugar of Saturn":1,"Cherimoya Rotsac":1} },
+    { name: "Cooked Halfmoon",        r: {"Halfmoon":1} },
+    { name: "Oily Salad",             r: {"Fibrous Pulp":2} },
+    { name: "Cooked Harvestmoon",     r: {"Harvestmoon":1} },
+    { name: "Cooked Bluemoon",        r: {"Bluemoon":1} },
+    { name: "Cooked Quadrate",        r: {"Quadrate":1} },
+    { name: "Cooked Geordie",         r: {"Geordie":1} },
+    { name: "Cooked Electric Geordie",r: {"Electric Geordie":1} },
+    { name: "Cooked Hoverthorn",      r: {"Hoverthorn":1} },
+    { name: "Cooked Black Hoverthorn",r: {"Black Hoverthorn":1} },
+    { name: "Cooked Pneuma",          r: {"Pneuma":1} },
+    { name: "Nutrient Block",         r: {"Biofuel Block":1,"Salt":1} },
+    { name: "Coral Mash",             r: {"Coral Shavings":3,"Sugar of Saturn":1} },
+    { name: "Isotonic Water",         r: {"Flash Slug":1,"Salt":1} },
+    { name: "Water",                  r: {"Water Slug":1} },
+  ]},
+  { name: "Consumables", items: [
+    { name: "Basic First Aid Kit",    r: {"Fiber":1} },
+    { name: "Enhanced First Aid Kit", r: {"Fiber":1,"Medical Gel Sac":1} },
+    { name: "Distraction Flare",      r: {"Titanium":1,"Quartz":1} },
+  ]},
+  { name: "Processor", items: [
+    { name: "Titanium Ingot",  r: {"Titanium":3} },
+    { name: "Copper Ingot",    r: {"Copper":3} },
+    { name: "Silver Ingot",    r: {"Silver":3} },
+    { name: "Gold Ingot",      r: {"Gold":3} },
+    { name: "Germanium",       r: {"Silver":2} },
+    { name: "Plasteel Ingot",  r: {"Titanium":2,"Lithium":1} },
+    { name: "Mangalloy Ingot", r: {"Titanium Ingot":1,"Atacamite":1,"Troilite":1} },
+    { name: "Strontium",       r: {"Celestine":2} },
+    { name: "Strong Acid",     r: {"Necrolei Cyst":2} },
+    { name: "Biofuel Block",   r: {"Fibrous Pulp":5} },
+  ]},
+  { name: "Building", items: [
+    { name: "Corridor",             r: {"Titanium":2} },
+    { name: "Room",                 r: {"Titanium":5} },
+    { name: "Hatch",                r: {"Titanium":1,"Quartz":1} },
+    { name: "Window",               r: {"Glass":1} },
+    { name: "Nook",                 r: {"Titanium":3,"Glass":2} },
+    { name: "Half Round Room",      r: {"Titanium":5,"Glass":5} },
+    { name: "Moonpool",             r: {"Titanium":5} },
+    { name: "Interior Wall",        r: {"Titanium":2} },
+    { name: "Interior Arch",        r: {"Titanium":1} },
+    { name: "Interior Door",        r: {"Titanium":3,"Glass":1,"Copper Wire":1} },
+    { name: "Ladder",               r: {"Titanium":2} },
+    { name: "Tadpole Dock",         r: {"Titanium Ingot":2,"Silver Ingot":1,"Copper Wire":2} },
+    { name: "Vehicle Fabricator",   r: {"Titanium Ingot":2,"Copper Ingot":1,"Glass":2} },
+    { name: "Fabricator",           r: {"Titanium":1,"Copper":1,"Quartz":1} },
+    { name: "Wall Locker",          r: {"Titanium":2} },
+    { name: "Processor (Building)", r: {"Titanium":2,"Mild Acid":1,"Copper Wire":1} },
+    { name: "Biolab",               r: {"Titanium":3,"Copper Wire":1,"Mild Acid":1} },
+    { name: "Modification Station", r: {"Titanium":2,"Celestine":2,"Copper":2} },
+    { name: "Floor Locker",         r: {"Titanium":3,"Quartz":1} },
+    { name: "Tailing Chest",        r: {"Titanium":3} },
+    { name: "Wall Rack",            r: {"Titanium":1,"Copper":1} },
+    { name: "Battery Terminal",     r: {"Titanium":2,"Quartz":2,"Copper Wire":1} },
+    { name: "Power Cell Terminal",  r: {"Titanium":3,"Copper":3,"Wiring Kit":1} },
+    { name: "Bioreactor",           r: {"Titanium Ingot":2,"Copper Ingot":2} },
+    { name: "Power Storage",        r: {"Germanium Ingot":1,"Titanium":3,"Salt":2} },
+    { name: "Biobed",               r: {"Titanium":3,"Glass":1,"Copper Wire":1} },
+    { name: "NOA Terminal",         r: {"Titanium":3,"Glass":1,"Copper Wire":1} },
+    { name: "Scanner Station",      r: {"System Chip":1,"Titanium":3,"Wiring Kit":1} },
+    { name: "Time of Day Display",  r: {"Titanium":1,"Enameled Glass":1} },
+    { name: "Solar Panel",          r: {"Titanium":1,"Quartz":2} },
+    { name: "Hydroelectric Turbine",r: {"Titanium":3,"Copper":3,"Silver":3} },
+    { name: "Thermal Plant",        r: {"Titanium":3,"Copper":3,"Gold":3} },
+    { name: "Power Transmitter",    r: {"Titanium":1,"Copper":1} },
+    { name: "Exterior Wall Light",  r: {"Titanium":1,"Copper":1} },
+    { name: "Spotlight",            r: {"Titanium":1,"Copper":2} },
+    { name: "Habitat Beacon",       r: {"Titanium":1} },
+    { name: "Portable Locker",      r: {"Titanium":4} },
+    { name: "Beacon",               r: {"Copper":1,"Titanium":1} },
+    { name: "Portable O2 Generator",r: {"Titanium":3,"Lithium":2} },
+    { name: "Work Light",           r: {"Titanium":3,"Quartz":2} },
+    { name: "Dive Elevator",        r: {"Titanium":4,"Copper":2,"Quartz":2} },
+    { name: "Small Ceiling Light",  r: {"Titanium":1,"Copper":1} },
+    { name: "Rect. Ceiling Light",  r: {"Titanium":2,"Copper":1} },
+    { name: "Wall Light Small",     r: {"Titanium":1,"Copper":1} },
+    { name: "Wall Light Large",     r: {"Titanium":2,"Copper":1} },
+    { name: "Axum Wall Lamp",       r: {"Celestine":1,"Titanium":1} },
+    { name: "Single Bed",           r: {"Titanium":2,"Fiber":3} },
+    { name: "Dining Table",         r: {"Titanium":3,"Glass":1} },
+    { name: "Stool",                r: {"Titanium":1,"Rubber":1} },
+    { name: "Dining Chair",         r: {"Titanium":2} },
+    { name: "Lab Chair",            r: {"Titanium":2} },
+    { name: "S Shelf",              r: {"Titanium":2} },
+    { name: "Trashcan",             r: {"Titanium":2} },
+    { name: "Small Crate",          r: {"Titanium":1} },
+    { name: "Sign",                 r: {"Titanium":1,"Copper":1} },
+    { name: "Tailing Table",        r: {"Titanium":2} },
+    { name: "Tailing Drum",         r: {"Titanium":2,"Fiber Mesh":2} },
+    { name: "Tailing Barrel",       r: {"Titanium":2} },
+    { name: "Coral Jar",            r: {"Coral Shavings":2} },
+    { name: "Small Coral Jar",      r: {"Coral Shavings":1} },
+    { name: "Tailing Jar",          r: {"Fiber":1,"Salt":1} },
+    { name: "Hanging Tailing Jar",  r: {"Fiber":2,"Salt":1} },
+    { name: "Tailing Rug",          r: {"Fiber":3} },
+    { name: "Small Axum Jar",       r: {"Glass":1,"Copper":1} },
+    { name: "Axum Jar",             r: {"Glass":1,"Copper":2} },
+    { name: "Tall Axum Jar",        r: {"Glass":1,"Copper":3} },
+    { name: "Growbed",              r: {"Titanium":1} },
+    { name: "Metal Farm",           r: {"Mangalloy Ingot":1,"Axum Bacterial Culture":1} },
+    { name: "Mimic Pylon",          r: {"Fibrous Pulp":5,"Copper":4} },
+    { name: "Freesia Flower",       r: {"Fibrous Pulp":3} },
+    { name: "Acid Raion",           r: {"Medical Gel Sac":1} },
+    { name: "Cradle Shootroot",     r: {"Lucifer Rotsac":1} },
+  ]},
+  { name: "Vehicle Fabricator", items: [
+    { name: "Tadpole",              r: {"Titanium Ingot":2,"Glass":1,"System Chip":1,"Power Cell":1} },
+    { name: "Scout Ray Chassis",    r: {"Plasteel Ingot":2,"Advanced Wiring Kit":1,"Dedicated Core":1,"Strong Acid":1} },
+    { name: "Tadpole Haul Chassis", r: {"Titanium Ingot":4,"Strontium":3,"Enameled Glass":3,"Dedicated Core":1} },
+  ]},
+  { name: "Modification Station", items: [
+    { name: "Bioscanner",                  r: {"Scanner":1,"Enameled Glass":2,"Conduit Crystal":3} },
+    { name: "Feedback Resonator",          r: {"Sonic Resonator":1,"Enameled Glass":2,"Conduit Crystal":2,"Strontium":2} },
+    { name: "Engine Efficiency",           r: {"Titanium Ingot":1,"Glass":2,"System Chip":1} },
+    { name: "Strike Armor",                r: {"Enameled Glass":2,"Strontium":2} },
+    { name: "Cavitation Muffler",          r: {"Titanium":3,"Strontium":2} },
+    { name: "Photovoltaic Charger",        r: {"Copper Ingot":1,"Strong Acid":1,"Troilite":1} },
+    { name: "Tadpole Depth Module MK.1",   r: {"Celestine":3,"Enameled Glass":2,"System Chip":1} },
+    { name: "Tadpole Depth Module MK.2",   r: {"Dedicated Core":2,"Troilite":2,"Mangalloy Ingot":2} },
+  ]},
+];
+
+// Items that can be broken down further (for "raw materials" mode)
+const CRAFTABLE = {
+  "Basic Battery":       {"Copper":2,"Acidic Raion Pouch":1},
+  "Advanced Battery":    {"Conduit Crystal":1,"Necrolei Cyst":2,"Silver":3},
+  "Copper Wire":         {"Copper":2},
+  "Power Cell":          {"Copper":4,"Acidic Raion Pouch":2,"Necrolei Cyst":2,"Salt":1},
+  "Entangled Power Cell":{"Conduit Crystal":1,"Necrolei Cyst":2,"Gold":3,"Troilite":1},
+  "Wiring Kit":          {"Silver":1,"Copper":2},
+  "Advanced Wiring Kit": {"Silver":1,"Copper":2,"Gold":1,"Sulfur":1},
+  "System Chip":         {"Silver":1,"Copper":2,"Quartz":2},
+  "Dedicated Core":      {"Silver":1,"Copper":2,"Gold":1,"Sulfur":1,"Quartz":2,"Necrolei Cyst":2},
+  "Fiber":               {"Fibrous Pulp":2},
+  "Fiber Mesh":          {"Fibrous Pulp":4,"Necrolei Cyst":2},
+  "Rubber":              {"Lucifer Rotsac":2},
+  "Grease":              {"Lucifer Rotsac":1},
+  "Glass":               {"Quartz":2},
+  "Enameled Glass":      {"Titanium":2,"Quartz":2,"Copper":4,"Acidic Raion Pouch":1},
+  "Mild Acid":           {"Acidic Raion Pouch":2,"Copper":1},
+  "Strong Acid":         {"Necrolei Cyst":2},
+  "Titanium Ingot":      {"Titanium":3},
+  "Copper Ingot":        {"Copper":3},
+  "Silver Ingot":        {"Silver":3},
+  "Gold Ingot":          {"Gold":3},
+  "Germanium":           {"Silver":2},
+  "Germanium Ingot":     {"Silver":2},
+  "Plasteel Ingot":      {"Titanium":2,"Lithium":1},
+  "Mangalloy Ingot":     {"Titanium":3,"Atacamite":1,"Troilite":1},
+  "Strontium":           {"Celestine":2},
+  "Biofuel Block":       {"Fibrous Pulp":5},
+  "Basic Fins":          {"Lucifer Rotsac":4,"Fibrous Pulp":4},
+  "Standard Air Tank":   {"Titanium":2,"Lucifer Rotsac":2,"Silver":2},
+  "High Capacity Air Tank": {"Titanium":4,"Lucifer Rotsac":2,"Silver":2,"Lithium":1},
+  "Sugar of Saturn":     {"Lead":1,"Salt":1},
+  "Scanner":             {"Titanium":2,"Quartz":2,"Copper":2,"Acidic Raion Pouch":1},
+  "Sonic Resonator":     {"Copper":2,"Acidic Raion Pouch":1,"Titanium":6,"Lead":2,"Silver":1,"Copper":2},
+};
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+const qty = {}; // item name → quantity
+
+function getQty(name) { return qty[name] || 0; }
+
+function setQty(name, val) {
+  const v = Math.max(0, Math.min(999, parseInt(val) || 0));
+  qty[name] = v;
+  render();
+  return v;
+}
+
+// ─────────────────────────────────────────────
+// INGREDIENT CALCULATION
+// ─────────────────────────────────────────────
+function addIngredients(recipe, multiplier, result) {
+  for (const [ing, amt] of Object.entries(recipe)) {
+    result[ing] = (result[ing] || 0) + amt * multiplier;
+  }
+}
+
+function calcDirect() {
+  const result = {};
+  for (const cat of CATEGORIES) {
+    for (const item of cat.items) {
+      const q = getQty(item.name);
+      if (q > 0) addIngredients(item.r, q, result);
+    }
+  }
+  return result;
+}
+
+function expandRaw(ing, amt, result) {
+  if (CRAFTABLE[ing]) {
+    for (const [sub, subAmt] of Object.entries(CRAFTABLE[ing])) {
+      expandRaw(sub, subAmt * amt, result);
+    }
+  } else {
+    result[ing] = (result[ing] || 0) + amt;
+  }
+}
+
+function calcRaw() {
+  const direct = calcDirect();
+  const result = {};
+  for (const [ing, amt] of Object.entries(direct)) {
+    expandRaw(ing, amt, result);
+  }
+  return result;
+}
+
+// ─────────────────────────────────────────────
+// KNOWN RAW MATERIALS (for tagging)
+// ─────────────────────────────────────────────
+const RAW_MATS = new Set([
+  "Titanium","Copper","Silver","Gold","Quartz","Salt","Lead","Lithium","Sulfur",
+  "Acidic Raion Pouch","Lucifer Rotsac","Fibrous Pulp","Necrolei Cyst",
+  "Conduit Crystal","Troilite","Atacamite","Celestine","Metal Salvage",
+  "Halfmoon","Harvestmoon","Bluemoon","Hoverthorn","Black Hoverthorn",
+  "Quadrate","Geordie","Electric Geordie","Pneuma","Flash Slug","Water Slug",
+  "Deepwing Egg Clump","Cherimoya Rotsac","Coral Shavings","Medical Gel Sac",
+  "Crab Feces","Pent","Axum Bacterial Culture","Creature Enamel",
+]);
+
+// ─────────────────────────────────────────────
+// RENDER LEFT PANEL
+// ─────────────────────────────────────────────
+function buildItemList() {
+  const el = document.getElementById('itemList');
+  el.innerHTML = '';
+  const search = document.getElementById('search').value.toLowerCase().trim();
+
+  for (const cat of CATEGORIES) {
+    const filtered = cat.items.filter(i => i.name.toLowerCase().includes(search));
+    if (filtered.length === 0) continue;
+
+    const section = document.createElement('div');
+    section.className = 'category';
+
+    const header = document.createElement('div');
+    header.className = 'cat-header';
+    const countActive = filtered.filter(i => getQty(i.name) > 0).length;
+    header.innerHTML = `<span>${cat.name}</span><span style="display:flex;gap:6px;align-items:center">${countActive > 0 ? `<span style="background:#1a4060;color:var(--accent);font-size:.65rem;padding:1px 6px;border-radius:8px">${countActive}</span>` : ''}<span class="arrow">▼</span></span>`;
+    header.onclick = () => {
+      header.classList.toggle('collapsed');
+      body.classList.toggle('hidden');
+    };
+    section.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'cat-body';
+    section.appendChild(body);
+
+    for (const item of filtered) {
+      const q = getQty(item.name);
+      const row = document.createElement('div');
+      row.className = 'item-row' + (q > 0 ? ' active' : '');
+      row.innerHTML = `
+        <span class="item-name">${item.name}</span>
+        <div class="qty-ctrl">
+          <button class="btn-minus" onclick="adjustQty('${item.name.replace(/'/g,"\\'")}', -1)">−</button>
+          <input class="qty-input" type="number" min="0" max="999" value="${q}"
+            onchange="handleInput(this,'${item.name.replace(/'/g,"\\'")}')">
+          <button class="btn-plus" onclick="adjustQty('${item.name.replace(/'/g,"\\'")}', 1)">+</button>
+        </div>`;
+      body.appendChild(row);
+    }
+    el.appendChild(section);
+  }
+}
+
+function adjustQty(name, delta) {
+  setQty(name, getQty(name) + delta);
+  buildItemList();
+}
+
+function handleInput(input, name) {
+  const v = setQty(name, input.value);
+  input.value = v;
+  buildItemList();
+}
+
+function filterItems() { buildItemList(); }
+
+function clearAll() {
+  for (const k of Object.keys(qty)) qty[k] = 0;
+  buildItemList();
+  render();
+}
+
+// ─────────────────────────────────────────────
+// RENDER RIGHT PANEL
+// ─────────────────────────────────────────────
+function render() {
+  const expand = document.getElementById('expandToggle').checked;
+  const result = expand ? calcRaw() : calcDirect();
+  const list = document.getElementById('ingList');
+  const badge = document.getElementById('ingCount');
+
+  const entries = Object.entries(result).filter(([,v]) => v > 0);
+
+  if (entries.length === 0) {
+    badge.textContent = '0';
+    const tabBadge0 = document.getElementById('ingCountTab');
+    if (tabBadge0) tabBadge0.textContent = '0';
+    list.innerHTML = `<div class="empty-state"><div class="icon">🔬</div><div>Select items on the left to calculate ingredients</div></div>`;
+    return;
+  }
+
+  // Sort: raw first, then crafted; within each group alphabetical
+  entries.sort((a, b) => {
+    const aRaw = RAW_MATS.has(a[0]) || expand;
+    const bRaw = RAW_MATS.has(b[0]) || expand;
+    if (aRaw !== bRaw) return bRaw ? 1 : -1;
+    return a[0].localeCompare(b[0]);
+  });
+
+  badge.textContent = entries.length;
+  const tabBadge = document.getElementById('ingCountTab');
+  if (tabBadge) tabBadge.textContent = entries.length;
+  list.innerHTML = '';
+
+  const rawEntries    = entries.filter(([k]) => expand || RAW_MATS.has(k));
+  const craftedEntries= entries.filter(([k]) => !expand && !RAW_MATS.has(k));
+
+  if (craftedEntries.length > 0) {
+    const lbl = document.createElement('div');
+    lbl.className = 'section-label'; lbl.textContent = 'Crafted Ingredients';
+    list.appendChild(lbl);
+    for (const [name, amt] of craftedEntries) appendRow(list, name, amt, false);
+  }
+
+  if (rawEntries.length > 0) {
+    const lbl = document.createElement('div');
+    lbl.className = 'section-label'; lbl.textContent = expand ? 'Raw Materials' : 'Raw Materials';
+    list.appendChild(lbl);
+    for (const [name, amt] of rawEntries) appendRow(list, name, amt, true);
+  }
+
+  buildItemList(); // refresh active counts in headers
+}
+
+function appendRow(list, name, amt, isRaw) {
+  const row = document.createElement('div');
+  row.className = 'ing-row';
+  const tag = isRaw
+    ? `<span class="ing-tag tag-raw">RAW</span>`
+    : `<span class="ing-tag tag-crafted">CRAFTED</span>`;
+  row.innerHTML = `<span class="ing-qty">${amt}×</span><span class="ing-name">${name}</span>${tag}`;
+  list.appendChild(row);
+}
+
+function copyList() {
+  const expand = document.getElementById('expandToggle').checked;
+  const result = expand ? calcRaw() : calcDirect();
+  const lines = Object.entries(result)
+    .filter(([,v]) => v > 0)
+    .sort((a,b) => a[0].localeCompare(b[0]))
+    .map(([k,v]) => `${v}x ${k}`)
+    .join('\n');
+  if (!lines) return;
+  navigator.clipboard.writeText(lines).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = 'Copy list', 1500);
+  });
+}
+
+// ─────────────────────────────────────────────
+// TAB SWITCHING (mobile)
+// ─────────────────────────────────────────────
+function switchTab(tab) {
+  const left  = document.querySelector('.left');
+  const right = document.querySelector('.right');
+  const tItems = document.getElementById('tabItems');
+  const tIng   = document.getElementById('tabIng');
+  if (tab === 'items') {
+    left.classList.add('tab-active');
+    right.classList.remove('tab-active');
+    tItems.classList.add('active');
+    tIng.classList.remove('active');
+  } else {
+    right.classList.add('tab-active');
+    left.classList.remove('tab-active');
+    tIng.classList.add('active');
+    tItems.classList.remove('active');
+  }
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+buildItemList();
+render();
+</script>
+</body>
+</html>
